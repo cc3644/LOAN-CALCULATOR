@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>대출금 상환 계산기</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#F7F7F5; --surface:#FFFFFF; --surface-1:#F1F0EC;
+    --border:#E3E1D9; --border-strong:#C9C6B9;
+    --text:#232220; --text-2:#6B6A63; --text-muted:#9B998F;
+    --accent:#3C3489; --accent-bg:#EEEDFE; --accent-text:#26215C;
+    --success:#0F6E56; --success-bg:#E1F5EE;
+    --danger:#993C1D; --danger-bg:#FAECE7;
+    --warning-bg:#FAEEDA; --warning-text:#412402;
+    --radius:8px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Pretendard,Roboto,sans-serif;
+    line-height:1.5;}
+  .wrap{max-width:1080px;margin:0 auto;padding:32px 20px 80px;}
+  h1{font-size:20px;font-weight:600;margin:0 0 4px;}
+  .sub{font-size:13px;color:var(--text-2);margin:0 0 28px;}
+  h2{font-size:15px;font-weight:600;margin:0;}
+  .section{margin-bottom:28px;}
+  .section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  .hint{font-size:12px;color:var(--text-muted);}
+
+  .loan-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;}
+  .loan-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;}
+  .loan-card-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+  .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+  .loan-name{font-size:14px;font-weight:600;flex:1;border:none;background:transparent;color:var(--text);padding:0;outline:none;}
+  .icon-btn{border:none;background:transparent;color:var(--text-muted);cursor:pointer;padding:4px;font-size:15px;line-height:1;border-radius:6px;}
+  .icon-btn:hover{background:var(--surface-1);color:var(--danger);}
+  .field-row{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px;color:var(--text-2);margin-bottom:6px;}
+  .field-row input, .field-row select{width:120px;text-align:right;border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:12px;color:var(--text);background:var(--surface);}
+  .field-row select{text-align:left;width:130px;}
+  .prepay-section{border-top:1px solid var(--border);margin-top:10px;padding-top:8px;}
+  .prepay-label{font-size:12px;color:var(--text-muted);margin-bottom:6px;}
+  .prepay-row{display:flex;gap:6px;font-size:12px;margin-bottom:5px;}
+  .prepay-row input{background:var(--surface-1);border:1px solid transparent;border-radius:6px;padding:4px 8px;flex:1;min-width:0;text-align:right;}
+  .prepay-row .icon-btn{padding:2px 4px;}
+  .add-link{font-size:12px;color:var(--accent);cursor:pointer;display:inline-flex;align-items:center;gap:3px;user-select:none;}
+  .add-loan-card{border:1px dashed var(--border-strong);border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text-muted);font-size:13px;min-height:160px;gap:6px;cursor:pointer;background:transparent;}
+  .add-loan-card:hover{background:var(--surface-1);}
+
+  .metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;}
+  .metric{background:var(--surface-1);border-radius:var(--radius);padding:12px 14px;}
+  .metric .l{font-size:12px;color:var(--text-2);margin-bottom:4px;}
+  .metric .v{font-size:18px;font-weight:600;}
+
+  .toolbar{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--text-2);}
+  .toolbar label{display:flex;align-items:center;gap:6px;}
+  .toolbar input[type=number]{width:100px;border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:12px;text-align:right;}
+  .btn{border:1px solid var(--border-strong);background:var(--surface);border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;color:var(--text);}
+  .btn:hover{background:var(--surface-1);}
+
+  .table-card{border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface);}
+  .year-head{display:flex;align-items:center;gap:8px;background:var(--surface-1);padding:9px 14px;font-size:13px;font-weight:600;cursor:pointer;user-select:none;border-top:1px solid var(--border);}
+  .year-head:first-child{border-top:none;}
+  .year-head .chev{font-size:13px;transition:transform .15s;color:var(--text-2);}
+  .year-head.collapsed .chev{transform:rotate(-90deg);}
+  .year-gap{margin-left:auto;font-size:12px;font-weight:400;color:var(--text-2);}
+
+  table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px;}
+  th{padding:6px 8px;text-align:right;color:var(--text-2);font-weight:400;background:var(--surface-1);}
+  th:first-child{text-align:left;padding-left:14px;}
+  td{padding:6px 8px;text-align:right;border-top:1px solid var(--border);}
+  td:first-child{text-align:left;padding-left:14px;color:var(--text-2);}
+  .r-total{font-weight:600;}
+  .gap-pos{color:var(--success);}
+  .gap-neg{color:var(--danger);}
+  .prepay-row-mark{background:var(--warning-bg);}
+  .prepay-row-mark td:first-child{color:var(--warning-text);}
+  .subtotal-row{background:var(--surface-1);font-weight:600;border-top:1px solid var(--border-strong);}
+  .gap-editable{width:100%;border:none;background:transparent;text-align:right;font-size:12px;color:inherit;padding:0;}
+  .gap-editable:focus{outline:1px solid var(--accent);border-radius:4px;}
+  .err{font-size:12px;color:var(--danger);margin-top:6px;}
+  .foot-note{font-size:11px;color:var(--text-muted);margin-top:10px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>대출금 상환 계산기</h1>
+  <p class="sub">여러 대출을 함께 등록하고, 회차별 상환 스케줄과 자금 여유(GAP)를 확인하세요.</p>
+
+  <div class="section">
+    <div class="section-head">
+      <h2>시뮬레이션 저장</h2>
+      <span class="hint">이 브라우저에 저장 · 다른 기기에서는 보이지 않음</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+      <input type="text" id="simName" placeholder="시뮬레이션 이름 (예: 25년 8월안)" style="flex:1;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;background:var(--surface);color:var(--text)">
+      <button class="btn" id="simSaveBtn">현재 상태 저장</button>
+    </div>
+    <div id="simList" style="display:flex;flex-direction:column;gap:6px"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-head">
+      <h2>대출 입력</h2>
+      <span class="hint">원리금균등 · 원금균등 · 만기일시</span>
+    </div>
+    <div class="loan-grid" id="loanGrid"></div>
+  </div>
+
+  <div class="section">
+    <div class="metric-grid" id="metricGrid"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-head">
+      <h2>회차별 상환표</h2>
+      <div class="toolbar">
+        <label>금액 <input type="number" id="availAmount" value="1000000" step="10000" style="width:110px"></label>
+        <label>회차 <input type="number" id="fromRound" value="1" min="1" style="width:56px"></label>
+        <span>~</span>
+        <input type="number" id="toRound" value="12" min="1" style="width:56px">
+        <button class="btn" id="applyAvail">선택 회차에 적용</button>
+        <button class="btn" id="exportBtn"><i class="ti"></i>엑셀 내려받기</button>
+      </div>
+    </div>
+    <div id="tableWrap"></div>
+    <p class="foot-note">가용 가능액은 회차 범위를 지정해 일괄 적용하거나, 표에서 회차별로 직접 수정할 수 있습니다. GAP = 가용 가능액 − 상환액 합계. 각 연차 안의 잉여 중도상환 칸에서 회차를 직접 입력해 그 시점까지의 누적 GAP을 원하는 대출의 중도상환으로 반영할 수 있으며, 위 대출 카드에도 표시됩니다.</p>
+  </div>
+</div>
+
+<script>
+// ---------- 상태 ----------
+let loans = [];
+let loanSeq = 0;
+let availOverrides = {}; // round -> value
+let defaultAvail = 1000000;
+let collapsedYears = new Set();
+const palette = ["#7F77DD","#1D9E75","#D85A30","#D4537E","#378ADD","#EF9F27"];
+
+function newLoan(){
+  loanSeq++;
+  return {
+    id: loanSeq,
+    name: "대출 " + loanSeq,
+    color: palette[(loanSeq-1) % palette.length],
+    principal: 30000000,
+    termMonths: 36,
+    rate: 4.5,
+    graceMonths: 0,
+    method: "equal_payment", // equal_payment | equal_principal | bullet
+    prepayments: [] // {round, amount}
+  };
+}
+
+// ---------- 상환 스케줄 계산 (핵심 로직) ----------
+// 반환: [{round, principal, interest, payment, balance}], round=1..termMonths
+function calcSchedule(loan, extra){
+  const n = loan.termMonths;
+  const g = Math.min(loan.graceMonths, n);
+  const monthlyRate = loan.rate / 100 / 12;
+  const prepayMap = {};
+  (loan.prepayments||[]).forEach(p=>{
+    if(p.round>=1 && p.round<=n && p.amount>0) prepayMap[p.round] = (prepayMap[p.round]||0)+p.amount;
+  });
+  if(extra){
+    Object.keys(extra).forEach(rk=>{
+      const rr = Number(rk);
+      if(rr>=1 && rr<=n && extra[rk]>0) prepayMap[rr] = (prepayMap[rr]||0) + extra[rk];
+    });
+  }
+
+  let balance = loan.principal;
+  const rows = [];
+  let remainingTerm = n; // 상환 개월(거치 제외 아님, 전체 기준)
+  let amortStart = g+1; // 원리금 상환 시작 회차
+
+  for(let r=1; r<=n; r++){
+    if(balance <= 0){
+      rows.push({round:r, principal:0, interest:0, payment:0, balance:0});
+      continue;
+    }
+    const interest = Math.round(balance * monthlyRate);
+    let principalPay = 0, payment = 0;
+
+    if(r <= g){
+      // 거치기간: 이자만 납부
+      payment = interest;
+      principalPay = 0;
+    } else if(loan.method === "bullet"){
+      // 만기일시: 마지막 회차에 원금 전액
+      if(r === n){
+        principalPay = balance;
+        payment = principalPay + interest;
+      } else {
+        payment = interest;
+        principalPay = 0;
+      }
+    } else if(loan.method === "equal_principal"){
+      const periodsLeft = n - r + 1;
+      principalPay = Math.round(balance / periodsLeft);
+      if(principalPay > balance) principalPay = balance;
+      payment = principalPay + interest;
+    } else {
+      // 원리금균등: 거치 종료 후 잔여기간 기준 재계산(연금공식), 중도상환 발생 시 재계산됨
+      const periodsLeft = n - r + 1;
+      let pmt;
+      if(monthlyRate === 0){
+        pmt = balance / periodsLeft;
+      } else {
+        pmt = balance * monthlyRate * Math.pow(1+monthlyRate, periodsLeft) / (Math.pow(1+monthlyRate, periodsLeft) - 1);
+      }
+      principalPay = Math.round(pmt - interest);
+      if(principalPay > balance) principalPay = balance;
+      payment = principalPay + interest;
+    }
+
+    balance = balance - principalPay;
+
+    // 중도상환 반영 (해당 회차 정기상환 이후 적용)
+    let prepayAmt = 0;
+    if(prepayMap[r]){
+      prepayAmt = Math.min(prepayMap[r], balance);
+      balance -= prepayAmt;
+    }
+
+    rows.push({
+      round:r,
+      principal: principalPay + prepayAmt,
+      interest,
+      payment: payment + prepayAmt,
+      balance: Math.max(balance,0),
+      prepaid: prepayAmt>0,
+      prepayAmt: prepayAmt
+    });
+  }
+  return rows;
+}
+
+function maxTerm(){
+  if(loans.length===0) return 0;
+  return Math.max(...loans.map(l=>l.termMonths));
+}
+
+// 회차 1~r까지 누적 GAP(가용 가능액 - 상환액 합계) 계산
+function cumGapThroughRound(schedules, r){
+  let cum = 0;
+  for(let i=1; i<=r; i++){
+    let rowTotal = 0;
+    schedules.forEach(sch=> rowTotal += sch[i-1] ? sch[i-1].payment : 0);
+    const avail = availOverrides[i] !== undefined ? availOverrides[i] : defaultAvail;
+    cum += (avail - rowTotal);
+  }
+  return cum;
+}
+
+function computeAll(){
+  const n = maxTerm();
+  const years = n ? Math.ceil(n/12) : 0;
+  const schedules = loans.map(l=>calcSchedule(l));
+  return {schedules, n, years};
+}
+
+// ---------- 렌더: 대출 카드 ----------
+function renderLoanCards(){
+  const grid = document.getElementById('loanGrid');
+  grid.innerHTML = "";
+  loans.forEach(loan=>{
+    const card = document.createElement('div');
+    card.className = 'loan-card';
+    card.innerHTML = `
+      <div class="loan-card-head">
+        <span class="dot" style="background:${loan.color}"></span>
+        <input class="loan-name" value="${loan.name}" data-field="name">
+        <button class="icon-btn" data-action="delete" title="삭제">✕</button>
+      </div>
+      <div class="field-row"><span>대출 금액</span><input type="number" step="100000" value="${loan.principal}" data-field="principal"></div>
+      <div class="field-row"><span>대출 기간(개월)</span><input type="number" step="1" value="${loan.termMonths}" data-field="termMonths"></div>
+      <div class="field-row"><span>연 이율(%)</span><input type="number" step="0.1" value="${loan.rate}" data-field="rate"></div>
+      <div class="field-row"><span>거치 기간(개월)</span><input type="number" step="1" value="${loan.graceMonths}" data-field="graceMonths"></div>
+      <div class="field-row"><span>상환 방식</span>
+        <select data-field="method">
+          <option value="equal_payment" ${loan.method==='equal_payment'?'selected':''}>원리금균등</option>
+          <option value="equal_principal" ${loan.method==='equal_principal'?'selected':''}>원금균등</option>
+          <option value="bullet" ${loan.method==='bullet'?'selected':''}>만기일시</option>
+        </select>
+      </div>
+      <div class="prepay-section">
+        <div class="prepay-label">중도 상환</div>
+        <div class="prepay-list"></div>
+        <span class="add-link" data-action="add-prepay">+ 추가</span>
+      </div>
+    `;
+    const prepayList = card.querySelector('.prepay-list');
+    loan.prepayments.forEach((p, idx)=>{
+      const row = document.createElement('div');
+      row.className='prepay-row';
+      row.innerHTML = `
+        <input type="number" min="1" max="${loan.termMonths}" placeholder="회차" value="${p.round}" data-pidx="${idx}" data-pfield="round">
+        <input type="number" step="10000" placeholder="상환 금액" value="${p.amount}" data-pidx="${idx}" data-pfield="amount">
+        <button class="icon-btn" data-action="del-prepay" data-pidx="${idx}">✕</button>
+      `;
+      prepayList.appendChild(row);
+    });
+
+    // 이벤트 바인딩
+    card.querySelectorAll('[data-field]').forEach(el=>{
+      el.addEventListener('change', ()=>{
+        const f = el.dataset.field;
+        if(f==='name') loan.name = el.value;
+        else if(f==='method') loan.method = el.value;
+        else loan[f] = Math.max(0, Number(el.value)||0);
+        renderAll();
+      });
+    });
+    card.querySelectorAll('[data-pfield]').forEach(el=>{
+      el.addEventListener('change', ()=>{
+        const idx = Number(el.dataset.pidx);
+        const f = el.dataset.pfield;
+        loan.prepayments[idx][f] = Number(el.value)||0;
+        renderAll();
+      });
+    });
+    card.querySelector('[data-action="delete"]').addEventListener('click', ()=>{
+      loans = loans.filter(l=>l.id!==loan.id);
+      renderAll();
+    });
+    card.querySelector('[data-action="add-prepay"]').addEventListener('click', ()=>{
+      loan.prepayments.push({round:1, amount:0});
+      renderAll();
+    });
+    card.querySelectorAll('[data-action="del-prepay"]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        loan.prepayments.splice(Number(btn.dataset.pidx),1);
+        renderAll();
+      });
+    });
+
+    grid.appendChild(card);
+  });
+
+  const addCard = document.createElement('div');
+  addCard.className = 'add-loan-card';
+  addCard.innerHTML = `<span style="font-size:20px">+</span>대출 추가`;
+  addCard.addEventListener('click', ()=>{
+    loans.push(newLoan());
+    renderAll();
+  });
+  grid.appendChild(addCard);
+}
+
+// ---------- 렌더: 요약 지표 ----------
+function renderMetrics(schedules){
+  const grid = document.getElementById('metricGrid');
+  const totalPrincipal = loans.reduce((s,l)=>s+l.principal,0);
+  let totalInterest = 0, maxPayment = 0, lastRound = 0;
+  const n = maxTerm();
+  for(let r=1;r<=n;r++){
+    let sum = 0;
+    schedules.forEach(sch=>{
+      const row = sch[r-1];
+      if(row){ totalInterest += row.interest; sum += row.payment; }
+    });
+    if(sum>0) lastRound = r;
+    maxPayment = Math.max(maxPayment, sum);
+  }
+  grid.innerHTML = `
+    <div class="metric"><div class="l">총 대출 원금</div><div class="v">${fmt(totalPrincipal)}</div></div>
+    <div class="metric"><div class="l">총 이자</div><div class="v">${fmt(totalInterest)}</div></div>
+    <div class="metric"><div class="l">월 최대 상환액</div><div class="v">${fmt(maxPayment)}</div></div>
+    <div class="metric"><div class="l">최종 상환 회차</div><div class="v">${lastRound>0? lastRound+'회차' : '-'}</div></div>
+  `;
+}
+
+function fmt(n){ return Math.round(n).toLocaleString('ko-KR'); }
+
+// ---------- 렌더: 상환표 ----------
+function renderTable(schedules, years){
+  const wrap = document.getElementById('tableWrap');
+  const n = maxTerm();
+  if(n===0){ wrap.innerHTML = '<p class="hint">대출을 추가하면 상환표가 표시됩니다.</p>'; return; }
+
+  const card = document.createElement('div');
+  card.className = 'table-card';
+
+  let cumGap = 0;
+
+  for(let y=0;y<years;y++){
+    const startR = y*12+1, endR = Math.min((y+1)*12, n);
+    const yearKey = 'y'+y;
+    const collapsed = collapsedYears.has(yearKey);
+
+    const head = document.createElement('div');
+    head.className = 'year-head' + (collapsed?' collapsed':'');
+    head.innerHTML = `<span class="chev">▾</span>${y+1}년차 (${startR}~${endR}회차)`;
+    head.addEventListener('click', ()=>{
+      if(collapsedYears.has(yearKey)) collapsedYears.delete(yearKey);
+      else collapsedYears.add(yearKey);
+      renderAll();
+    });
+    card.appendChild(head);
+
+    const sweepBar = document.createElement('div');
+    sweepBar.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 14px;border-top:1px solid var(--border);background:var(--surface);font-size:12px;color:var(--text-2);';
+    sweepBar.innerHTML = `
+      <span>잉여 중도상환</span>
+      <input type="number" class="sweep-round-input" min="1" max="${n}" value="${endR}" style="width:64px;border:1px solid var(--border);border-radius:6px;padding:3px 6px;text-align:right;font-size:12px">
+      <span>회차를</span>
+      <select class="sweep-loan-select" style="border:1px solid var(--border);border-radius:6px;padding:3px 6px;font-size:12px">
+        ${loans.map(l=>`<option value="${l.id}">${l.name}</option>`).join('')}
+      </select>
+      <span>대출 중도상환</span>
+      <span class="err sweep-msg" style="margin:0"></span>
+      <button class="btn sweep-apply-btn" style="margin-left:auto">적용</button>
+    `;
+    const roundInput = sweepBar.querySelector('.sweep-round-input');
+    const loanSelect = sweepBar.querySelector('.sweep-loan-select');
+    const msgSpan = sweepBar.querySelector('.sweep-msg');
+    sweepBar.querySelector('.sweep-apply-btn').addEventListener('click', ()=>{
+      msgSpan.textContent = '';
+      const round = Number(roundInput.value);
+      const loanId = Number(loanSelect.value);
+      const loan = loans.find(l=>l.id===loanId);
+      if(!loan || !round || round<1 || round>n){ msgSpan.textContent = '유효한 회차를 입력하세요.'; return; }
+      const sch = loans.map(l=>calcSchedule(l));
+      const cum = Math.round(cumGapThroughRound(sch, round));
+      if(cum<=0){ msgSpan.textContent = '해당 회차까지 잉여 자금이 없습니다.'; return; }
+      loan.prepayments.push({round, amount: cum});
+      renderAll();
+    });
+    card.appendChild(sweepBar);
+
+    if(collapsed) continue;
+
+    const table = document.createElement('table');
+    let thead = `<tr><th style="width:52px">회차</th>`;
+    loans.forEach(l=> thead += `<th>${l.name}</th>`);
+    thead += `<th>상환액 합계</th><th>중도상환액</th><th>가용 가능액</th><th>GAP</th><th>누적 GAP</th></tr>`;
+    let tbody = '';
+    let yearPrincipalSums = loans.map(()=>0);
+    let yearTotal=0, yearAvail=0, yearPrepay=0;
+
+    for(let r=startR; r<=endR; r++){
+      let rowTotal = 0;
+      let rowPrepay = 0;
+      let cells = '';
+      let anyPrepaid = false;
+      loans.forEach((l,i)=>{
+        const row = schedules[i][r-1];
+        const val = row? row.payment : 0;
+        if(row && row.prepaid){ anyPrepaid = true; rowPrepay += row.prepayAmt; }
+        rowTotal += val;
+        yearPrincipalSums[i] += val;
+        cells += `<td>${val>0? fmt(val):'-'}</td>`;
+      });
+      const avail = availOverrides[r] !== undefined ? availOverrides[r] : defaultAvail;
+      const gap = avail - rowTotal;
+      cumGap += gap;
+      yearTotal += rowTotal;
+      yearAvail += avail;
+      yearPrepay += rowPrepay;
+
+      tbody += `<tr class="${anyPrepaid?'prepay-row-mark':''}">
+        <td>${r}회차</td>
+        ${cells}
+        <td class="r-total">${fmt(rowTotal)}</td>
+        <td>${rowPrepay>0? fmt(rowPrepay):'-'}</td>
+        <td><input class="gap-editable" type="number" step="10000" value="${avail}" data-round="${r}"></td>
+        <td class="${gap>=0?'gap-pos':'gap-neg'}">${gap>=0?'+':''}${fmt(gap)}</td>
+        <td class="${cumGap>=0?'gap-pos':'gap-neg'}">${cumGap>=0?'+':''}${fmt(cumGap)}</td>
+      </tr>`;
+    }
+
+    // 연 합계 행
+    let subCells = '';
+    yearPrincipalSums.forEach(v=> subCells += `<td>${fmt(v)}</td>`);
+    tbody += `<tr class="subtotal-row">
+      <td>${y+1}년 합계</td>
+      ${subCells}
+      <td>${fmt(yearTotal)}</td>
+      <td>${fmt(yearPrepay)}</td>
+      <td>${fmt(yearAvail)}</td>
+      <td>-</td>
+      <td class="${cumGap>=0?'gap-pos':'gap-neg'}">${cumGap>=0?'+':''}${fmt(cumGap)}</td>
+    </tr>`;
+
+    table.innerHTML = thead + tbody;
+    card.appendChild(table);
+  }
+
+  wrap.innerHTML = '';
+  wrap.appendChild(card);
+
+  wrap.querySelectorAll('.gap-editable').forEach(inp=>{
+    inp.addEventListener('change', ()=>{
+      availOverrides[Number(inp.dataset.round)] = Number(inp.value)||0;
+      renderAll();
+    });
+  });
+}
+
+// ---------- 엑셀 내려받기 ----------
+function exportExcel(){
+  const {schedules, n} = computeAll();
+  if(n===0) return;
+  const header = ['회차', ...loans.map(l=>l.name), '상환액 합계', '중도상환액', '가용 가능액', 'GAP', '누적 GAP'];
+  const data = [header];
+  let cumGap = 0;
+  for(let r=1;r<=n;r++){
+    let rowTotal = 0;
+    let rowPrepay = 0;
+    const cells = loans.map((l,i)=> schedules[i][r-1] ? schedules[i][r-1].payment : 0);
+    schedules.forEach(sch=>{ if(sch[r-1] && sch[r-1].prepaid) rowPrepay += sch[r-1].prepayAmt; });
+    rowTotal = cells.reduce((a,b)=>a+b,0);
+    const avail = availOverrides[r] !== undefined ? availOverrides[r] : defaultAvail;
+    const gap = avail - rowTotal;
+    cumGap += gap;
+    data.push([r, ...cells, rowTotal, rowPrepay, avail, gap, cumGap]);
+  }
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '상환표');
+  XLSX.writeFile(wb, '대출상환표.xlsx');
+}
+
+// ---------- 전체 렌더 ----------
+function renderAll(){
+  renderLoanCards();
+  const {schedules, years} = computeAll();
+  renderMetrics(schedules);
+  renderTable(schedules, years);
+}
+
+document.getElementById('applyAvail').addEventListener('click', ()=>{
+  const amount = Number(document.getElementById('availAmount').value)||0;
+  const from = Math.max(1, Number(document.getElementById('fromRound').value)||1);
+  const to = Math.max(from, Number(document.getElementById('toRound').value)||from);
+  for(let r=from; r<=to; r++) availOverrides[r] = amount;
+  renderAll();
+});
+document.getElementById('exportBtn').addEventListener('click', exportExcel);
+
+// ---------- 시뮬레이션 저장/불러오기 ----------
+const SIM_KEY = 'loanCalcSimulations';
+
+function loadSimList(){
+  try{ return JSON.parse(localStorage.getItem(SIM_KEY) || '[]'); }
+  catch(e){ return []; }
+}
+function saveSimList(list){
+  try{ localStorage.setItem(SIM_KEY, JSON.stringify(list)); return true; }
+  catch(e){ return false; }
+}
+
+function renderSimList(){
+  const wrap = document.getElementById('simList');
+  const list = loadSimList();
+  if(list.length===0){
+    wrap.innerHTML = '<p class="hint">저장된 시뮬레이션이 없습니다.</p>';
+    return;
+  }
+  wrap.innerHTML = list.slice().reverse().map(item=>{
+    const d = new Date(item.savedAt);
+    const dateStr = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    return `<div style="display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:8px;padding:8px 12px">
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:500">${item.name}</div>
+        <div style="font-size:11px;color:var(--text-muted)">${dateStr}</div>
+      </div>
+      <button class="btn" data-action="load-sim" data-id="${item.id}">불러오기</button>
+      <button class="icon-btn" data-action="delete-sim" data-id="${item.id}" title="삭제">✕</button>
+    </div>`;
+  }).join('');
+
+  wrap.querySelectorAll('[data-action="load-sim"]').forEach(btn=>{
+    btn.addEventListener('click', ()=> loadSimulation(btn.dataset.id));
+  });
+  wrap.querySelectorAll('[data-action="delete-sim"]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const list = loadSimList().filter(x=>String(x.id)!==String(btn.dataset.id));
+      saveSimList(list);
+      renderSimList();
+    });
+  });
+}
+
+function saveCurrentSimulation(){
+  const nameInput = document.getElementById('simName');
+  const name = nameInput.value.trim() || `시뮬레이션 ${new Date().toLocaleString('ko-KR')}`;
+  const state = {
+    loans: JSON.parse(JSON.stringify(loans)),
+    availOverrides: JSON.parse(JSON.stringify(availOverrides)),
+    defaultAvail
+  };
+  let list = loadSimList();
+  const existingIdx = list.findIndex(x=>x.name===name);
+  const entry = { id: existingIdx>=0 ? list[existingIdx].id : Date.now(), name, savedAt: Date.now(), state };
+  if(existingIdx>=0) list[existingIdx] = entry;
+  else list.push(entry);
+  const ok = saveSimList(list);
+  if(!ok){ alert('저장에 실패했습니다. 브라우저 저장공간을 확인해주세요.'); return; }
+  nameInput.value = '';
+  renderSimList();
+}
+
+function loadSimulation(id){
+  const list = loadSimList();
+  const entry = list.find(x=>String(x.id)===String(id));
+  if(!entry) return;
+  loans = JSON.parse(JSON.stringify(entry.state.loans));
+  availOverrides = JSON.parse(JSON.stringify(entry.state.availOverrides || {}));
+  defaultAvail = entry.state.defaultAvail || 1000000;
+  loanSeq = loans.length ? Math.max(...loans.map(l=>l.id)) : 0;
+  collapsedYears = new Set();
+  renderAll();
+}
+
+document.getElementById('simSaveBtn').addEventListener('click', saveCurrentSimulation);
+
+// 초기 대출 2건
+loans.push(Object.assign(newLoan(), {name:'대출 1', principal:30000000, termMonths:36, rate:4.5, graceMonths:6}));
+loans.push(Object.assign(newLoan(), {name:'대출 2', principal:12000000, termMonths:48, rate:6.2, graceMonths:0}));
+defaultAvail = 1000000;
+renderAll();
+renderSimList();
+</script>
+</body>
+</html>
